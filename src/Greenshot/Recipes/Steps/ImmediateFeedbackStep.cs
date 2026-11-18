@@ -28,6 +28,8 @@ using Greenshot.Base.Core;
 using Greenshot.Base.Recipes;
 using Greenshot.Base.Recipes.Contracts;
 using Greenshot.Base.Recipes.Pipeline;
+using Greenshot.Base.Threading;
+using Greenshot.Capturing;
 using Greenshot.Helpers;
 using log4net;
 
@@ -40,12 +42,18 @@ namespace Greenshot.Recipes.Steps
     [StepInfo(WellKnownStepTypes.ImmediateFeedback, "Immediate Feedback", "Plays the camera sound after a capture (not for a capture handed to the flow).", "Feedback")]
     [StepParameter("PlaySound", ContractDataType.Boolean, Description = "Play the camera sound (default: settings)")]
     [StepParameter("SoundFilePath", ContractDataType.FilePath, Description = "Sound file to play instead of the camera sound")]
+    [StepParameter(ImmediateFeedbackStep.FlashParameter, ContractDataType.Boolean, Description = "Show a faint flash over the captured displays, which fades out (default: false)")]
     [StepInputVariable("PlayShutterSound", ContractDataType.Boolean, Description = "Overrides PlaySound")]
     [StepInputVariable("SoundFilePath", ContractDataType.FilePath, Description = "Overrides SoundFilePath")]
     public class ImmediateFeedbackStep : ICaptureStep
     {
         private static readonly ILog Log = LogManager.GetLogger(typeof(ImmediateFeedbackStep));
         private static readonly ICoreConfiguration CoreConfig = IniConfigRegistry.GetSection<ICoreConfiguration>();
+
+        /// <summary>
+        /// The parameter which shows the flash over the captured displays
+        /// </summary>
+        public const string FlashParameter = "Flash";
 
         public string Name { get; }
         public RecipeNodeConfig Config { get; }
@@ -79,7 +87,34 @@ namespace Greenshot.Recipes.Steps
                 }
             }
 
+            if (Config.GetParameter<bool?>(FlashParameter) == true)
+            {
+                StartFlash(context);
+            }
+
             return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// Shows the flash on the UI thread without waiting for it: the capture is taken already, the flow saves it meanwhile
+        /// </summary>
+        private static void StartFlash(CaptureFlowContext context)
+        {
+            var bounds = context.Payload?.RawCapture?.ScreenBounds;
+            var capturedArea = bounds.HasValue
+                ? new System.Drawing.Rectangle(bounds.Value.X, bounds.Value.Y, bounds.Value.Width, bounds.Value.Height)
+                : System.Drawing.Rectangle.Empty;
+            if (context.Ui == null)
+            {
+                return;
+            }
+
+            context.Ui.InvokeAsync(() =>
+            {
+                // Accessibility: no animation when Windows says so, nor in a remote session
+                bool animate = System.Windows.SystemParameters.ClientAreaAnimation && !System.Windows.SystemParameters.IsRemoteSession;
+                CaptureFlashForm.ShowAsync(capturedArea, animate).FireAndLog("Capture flash", Log);
+            }).FireAndLog("Capture flash", Log);
         }
 
         private bool ResolvePlaySound(CaptureFlowContext context)

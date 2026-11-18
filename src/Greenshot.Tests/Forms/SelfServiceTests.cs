@@ -194,7 +194,9 @@ namespace Greenshot.Tests.Forms
             var hotkeys = new HotkeySectionViewModel();
 
             Assert.NotNull(hotkeys.Hotkeys);
-            Assert.Equal(5, hotkeys.Hotkeys.Count);
+            // The five hotkeys of the general settings and Shift + PrintScreen of the silent full screen capture
+            Assert.Equal(6, hotkeys.Hotkeys.Count);
+            Assert.Contains(hotkeys.Hotkeys, h => h.ConfigKey == "recipe_silent_fullscreen");
 
             Assert.Contains(hotkeys.Hotkeys, h => h.ConfigKey == "RegionHotkey" && !string.IsNullOrEmpty(h.ActionName));
             Assert.Contains(hotkeys.Hotkeys, h => h.ConfigKey == "WindowHotkey" && !string.IsNullOrEmpty(h.ActionName));

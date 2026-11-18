@@ -1,0 +1,89 @@
+name: Silent capture build and release
+
+# Builds the fork with the silent full screen capture (Shift + PrintScreen), runs its tests and publishes the installer
+# and the portable version as a GitHub release. Unsigned: Windows SmartScreen asks once before the first start.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'feature/silent-fullscreen-capture'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build, test and release
+    runs-on: windows-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+      with:
+        fetch-depth: 0
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Set up .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Restore NuGet packages
+      shell: cmd
+      run: msbuild src/Greenshot.sln /p:Configuration=Release /restore /t:PrepareForBuild
+
+    - name: Build and package
+      shell: cmd
+      run: msbuild src/Greenshot.sln /p:Configuration=Release /t:Rebuild /v:minimal
+
+    - name: Test the silent capture and the code it touches
+      shell: pwsh
+      run: |
+        dotnet test src/Greenshot.Tests/Greenshot.Tests.csproj --configuration Release --no-build --logger "console;verbosity=normal" --filter "FullyQualifiedName~SilentFullScreenRecipeTests|FullyQualifiedName~CoreConfigurationSilentCaptureTests|FullyQualifiedName~RecipeTriggerSettingTests|FullyQualifiedName~StepContractTests|FullyQualifiedName~TrayClickRecipesTests|FullyQualifiedName~RecipeApprovalTests|FullyQualifiedName~CoreConfigurationTrayClickTests|FullyQualifiedName~PolicyTemplatesTests|FullyQualifiedName~AccessibilityXamlTests|FullyQualifiedName~HotkeySectionViewModel"
+        if ($LASTEXITCODE -ne 0) { throw "Tests failed ($LASTEXITCODE)" }
+
+    - name: Full test suite (information only, desktop tests can't run on the runner)
+      continue-on-error: true
+      shell: pwsh
+      run: dotnet test src/Greenshot.Tests/Greenshot.Tests.csproj --configuration Release --no-build --logger "console;verbosity=minimal" --blame-hang-timeout 5m
+
+    - name: Collect release files
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Path release -Force | Out-Null
+        $installer = Get-ChildItem installer -Filter 'Greenshot-INSTALLER-*.exe' | Select-Object -First 1
+        if (-not $installer) { throw "No installer was built" }
+        Copy-Item $installer.FullName (Join-Path release ($installer.Name -replace '^Greenshot-', 'Greenshot-SilentCapture-'))
+        $version = if ($installer.Name -match 'Greenshot-INSTALLER-(.+)\.exe') { $Matches[1] } else { 'dev' }
+        pwsh -File prepare-portable.ps1 -RepositoryRootPath "${{ github.workspace }}" -BuildArtifactsPath "${{ github.workspace }}/src/Greenshot/bin/Release/net480" -OutputPath "${{ github.workspace }}/portable"
+        if (-not (Test-Path portable/Greenshot.exe)) { throw "The portable folder has no Greenshot.exe" }
+        Compress-Archive -Path portable/* -DestinationPath "release/Greenshot-SilentCapture-PORTABLE-$version.zip" -Force
+        Get-ChildItem release | Format-Table Name, Length
+
+    - name: Upload release files
+      uses: actions/upload-artifact@v4
+      with:
+        name: greenshot-silent-capture
+        path: release/*
+        if-no-files-found: error
+
+    - name: Create GitHub release
+      shell: pwsh
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        $tag = "silent-capture-${{ github.run_number }}"
+        $notes = @"
+        Greenshot with a silent full screen capture.
+
+        * **Shift + PrintScreen** captures all displays and saves a PNG to ``Pictures\Greenshot`` (``Screenshot yyyy-MM-dd HH_mm_ss.png``).
+        * No dialog, no notification, no editor: only a faint white flash fades over the screens. Without Windows' animation effects it shows briefly without the fade.
+        * The hotkey and the folder can be changed in Settings > Recipes (Silent full screen capture). Capture last region lost its old default Shift + PrintScreen.
+
+        Install with the INSTALLER exe, or unzip the PORTABLE zip anywhere and start Greenshot.exe from it.
+        Unsigned build: Windows SmartScreen may ask once ("More info" > "Run anyway").
+
+        Commit ${{ github.sha }}
+        "@
+        gh release create $tag (Get-ChildItem release -File | ForEach-Object { $_.FullName }) --repo ${{ github.repository }} --target ${{ github.sha }} --title "Greenshot silent capture (build ${{ github.run_number }})" --notes $notes

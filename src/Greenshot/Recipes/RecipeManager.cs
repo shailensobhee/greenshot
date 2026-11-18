@@ -80,6 +80,7 @@ namespace Greenshot.Recipes
         public const string RecipeIdOpenSettings = "recipe_open_settings";
         public const string RecipeIdEmptyEditor = "recipe_empty_editor";
         public const string RecipeIdQuickSettings = "recipe_quick_settings";
+        public const string RecipeIdSilentFullScreen = "recipe_silent_fullscreen";
 
         private readonly Dictionary<string, CaptureRecipe> _builtInRecipes = new Dictionary<string, CaptureRecipe>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, CaptureRecipe> _recipes = new Dictionary<string, CaptureRecipe>(StringComparer.OrdinalIgnoreCase);
@@ -451,6 +452,10 @@ namespace Greenshot.Recipes
             lastRegionRecipe.AddTrigger(TriggerConfig.CreateMainMenu("Core.contextmenu_capturelastregion", 20, "contextmenu_capturelastregion.Image"));
             RegisterBuiltIn(lastRegionRecipe, disabled);
 
+            // 5b. Silent full screen capture: Shift + PrintScreen saves all displays to a fixed folder, no dialog, no notification,
+            // only a faint flash over the captured screens
+            RegisterBuiltIn(CreateSilentFullScreenRecipe(), disabled);
+
             // 6. Clipboard Import
             var clipboardRecipe = new CaptureRecipe(
                 RecipeIdClipboard,
@@ -540,6 +545,64 @@ namespace Greenshot.Recipes
             RegisterBuiltIn(CreateOpenWindowRecipe(RecipeIdEmptyEditor, "Core.contextmenu_openemptyeditor", "Opens an empty image in the editor", OpenWindowStep.EmptyEditor), disabled);
             // 14. The quick settings in a window, for a hotkey or a click on the tray icon
             RegisterBuiltIn(CreateOpenWindowRecipe(RecipeIdQuickSettings, "Core.contextmenu_quicksettings", "Opens the quick settings in a window", OpenWindowStep.QuickSettings), disabled);
+        }
+
+        /// <summary>
+        /// The option with the hotkey of the silent full screen capture
+        /// </summary>
+        public const string SilentHotkeyOptionKey = "hotkey";
+
+        /// <summary>
+        /// The option with the folder of the silent full screen capture
+        /// </summary>
+        public const string SilentFolderOptionKey = "folder";
+
+        /// <summary>
+        /// The folder the silent full screen capture saves to, unless the user chose another one in Settings > Recipes
+        /// </summary>
+        public const string SilentDefaultFolder = @"${user.pictures}\Greenshot";
+
+        /// <summary>
+        /// All displays, saved as PNG to a fixed folder without asking anything: no wait, no quality dialog, a free name
+        /// instead of the save dialog when the file exists, no notification. The feedback is a faint flash, no sound.
+        /// </summary>
+        internal static CaptureRecipe CreateSilentFullScreenRecipe()
+        {
+            var recipe = new CaptureRecipe(
+                RecipeIdSilentFullScreen,
+                "Silent full screen capture",
+                "Captures all displays and saves them to a folder, without any question or notification")
+                .AddNode(RecipeStepConfig.CreateSource("acquire", CaptureSourceType.FullScreen, delayMs: 0, screenMode: ScreenCaptureMode.FullScreen))
+                .AddNode(RecipeStepConfig.CreateFeedback("feedback", playSound: false)
+                    .Set(ImmediateFeedbackStep.FlashParameter, true))
+                .AddNode(RecipeStepConfig.CreateSaveFile("save", "${option." + SilentFolderOptionKey + "}",
+                        "Screenshot ${payload.time:yyyy-MM-dd HH_mm_ss}", Greenshot.Base.Core.FileFormat.WellKnownFileFormats.Png,
+                        Greenshot.Base.Core.Enums.FileExistsAction.AddNumber)
+                    .Set("PromptQuality", false)
+                    .Set("AskForFilename", false)
+                    .Set("CopyPathToClipboard", false));
+            recipe.Flow = new RecipeFlowConfig("acquire")
+                .AddTransition("acquire", "feedback")
+                .AddTransition("feedback", "save");
+            recipe.Options = new List<RecipeOption>
+            {
+                new RecipeOption
+                {
+                    Key = SilentHotkeyOptionKey,
+                    Type = Greenshot.Base.Recipes.Contracts.ContractDataType.Hotkey,
+                    DefaultValue = CoreConfigurationImpl.SilentCaptureHotkey,
+                    Label = "Hotkey"
+                },
+                new RecipeOption
+                {
+                    Key = SilentFolderOptionKey,
+                    Type = Greenshot.Base.Recipes.Contracts.ContractDataType.DirectoryPath,
+                    DefaultValue = SilentDefaultFolder,
+                    Label = "Folder"
+                }
+            };
+            recipe.AddTrigger(TriggerConfig.CreateHotkey("${option." + SilentHotkeyOptionKey + "}", "Silent Capture Hotkey"));
+            return recipe;
         }
 
         private static CaptureRecipe CreateOpenWindowRecipe(string id, string name, string description, string window)

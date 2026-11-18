@@ -163,9 +163,10 @@ targets of a click on the tray icon (see below). Their ids stay the same, a reci
 | Recipe (id) | What it does | Tray menu | Hotkey |
 |---|---|---|---|
 | Capture region (`recipe_region`) | The capture screen in the region mode | Yes | `${config.RegionHotkey}` |
-| Capture last region (`recipe_lastregion`) | The area of the last capture again (the item is off while there is none) | Yes | `${config.LastregionHotkey}` |
+| Capture last region (`recipe_lastregion`) | The area of the last capture again (the item is off while there is none) | Yes | `${config.LastregionHotkey}` (none by default; Shift + PrintScreen, its old default, moves once to the silent full screen capture) |
 | Capture window (`recipe_window`) | The capture screen in the window mode | Yes | `${config.WindowHotkey}` when *interactive window capture* is on |
 | Capture full screen (`recipe_fullscreen`) | All displays; in the menu with more than one display a sub menu: all, or one of them | Yes | `${config.FullscreenHotkey}` |
+| Silent full screen capture (`recipe_silent_fullscreen`) | All displays saved as PNG to a folder (option `folder`, default `${user.pictures}\Greenshot`) without any question or notification, only a faint flash fades over the captured displays (no fade when Windows' animation effects are off) | | `Shift + PrintScreen` (option `hotkey`) |
 | Capture active window (`recipe_active_window`) | The active window right away; in the menu "Capture window from list", a sub menu of the open windows | Yes | `${config.WindowHotkey}` when *interactive window capture* is off |
 | Capture from clipboard (`recipe_clipboard`) | The image on the clipboard (the item is off while there is none) | Yes | `${config.ClipboardHotkey}` |
 | Open file (`recipe_file`) | Asks for an image file and opens it, also used for files opened with Greenshot | Yes | |

@@ -58,9 +58,13 @@ namespace Greenshot.Base.Core
         [DefaultValue("Ctrl + PrintScreen")]
         string FullscreenHotkey { get; set; }
 
-        [Description("Hotkey for starting the last region capture")]
-        [DefaultValue("Shift + PrintScreen")]
+        [Description("Hotkey for starting the last region capture. Shift + PrintScreen belongs to the silent full screen capture (recipe_silent_fullscreen).")]
+        [DefaultValue("None")]
         string LastregionHotkey { get; set; }
+
+        [Description("Shift + PrintScreen, the old default of LastregionHotkey, was moved to the silent full screen capture once")]
+        [NotAdministrable]
+        bool SilentCaptureHotkeyMoved { get; set; }
 
         [Description("Hotkey for opening the clipboard contents into the editor")]
         string ClipboardHotkey { get; set; }

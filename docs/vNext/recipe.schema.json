@@ -533,6 +533,10 @@
               "type": "boolean",
               "description": "Used by 'ImmediateFeedback' step: Explicitly pre-defines shutter sound."
             },
+            "Flash": {
+              "type": "boolean",
+              "description": "Used by 'ImmediateFeedback' step: Shows a faint flash over the captured displays, which fades out."
+            },
             "Branches": {
               "type": "array",
               "description": "Used by 'Conditional' step: List of decision branches evaluating expressions.",

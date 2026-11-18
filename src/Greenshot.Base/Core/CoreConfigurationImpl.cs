@@ -330,6 +330,9 @@ namespace Greenshot.Base.Core
 
             MoveCaptureDelay();
 
+            // Shift + PrintScreen starts the silent full screen capture now: the old default of the last region capture is moved once
+            MoveShiftPrintScreen();
+
             // Prevent both settings at once, bug #3435056
             if (OutputDestinations.Contains("Clipboard") && OutputFileCopyPathToClipboard)
             {
@@ -471,6 +474,33 @@ namespace Greenshot.Base.Core
             {
                 Log.Debug($"Couldn't clear {oldKey}", ex);
             }
+        }
+
+        /// <summary>
+        /// The hotkey of the silent full screen capture (recipe_silent_fullscreen), the default of LastregionHotkey before
+        /// </summary>
+        public const string SilentCaptureHotkey = "Shift + PrintScreen";
+
+        /// <summary>
+        /// Shift + PrintScreen was the default of LastregionHotkey, it belongs to the silent full screen capture now. A
+        /// LastregionHotkey which still is Shift + PrintScreen is cleared once, so both don't fight for the key; another hotkey
+        /// the user chose stays, also a later choice of Shift + PrintScreen (it is only moved once).
+        /// </summary>
+        private void MoveShiftPrintScreen()
+        {
+            if (SilentCaptureHotkeyMoved)
+            {
+                return;
+            }
+
+            if (!IsConstant(nameof(LastregionHotkey)) && HotkeySequence.Parse(SilentCaptureHotkey).Equals(HotkeySequence.Parse(LastregionHotkey)))
+            {
+                LastregionHotkey = "None";
+                Log.InfoFormat("Moved {0} from {1} to the silent full screen capture.", SilentCaptureHotkey, nameof(LastregionHotkey));
+            }
+
+            SilentCaptureHotkeyMoved = true;
+            MarkAsDirty();
         }
 
         /// <summary>
